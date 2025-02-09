@@ -1,0 +1,83 @@
+---
+title: "Movie rating"
+author: "Woodelyne Durosier"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+---
+
+```{r Libray_packages}
+library(DBI)
+library(RMariaDB)  
+library(tidyverse)
+library(dplyr)
+library(RMySQL)
+```
+
+## Creating connection to database
+```{r MySQL_Connect}
+con <- dbConnect(RMySQL::MySQL(),
+                 dbname = "data_sql",
+                 host = "localhost",
+                 port = 3306,
+                 user = "root",
+                 password = "Lo29@#6m_blis4/")
+```
+## Data upload
+
+This is to analyze the most top six recent movie rated by five individuals (family and friends) survey from 1-5.importing from MySQL database.
+
+```{r Casting_valued}
+movies_df <- dbGetQuery(con, "SELECT CAST(movie_id AS SIGNED) AS movie_id, title, release_year FROM movies;")
+
+users_df <- dbGetQuery(con, "SELECT CAST(user_id AS SIGNED) AS user_id, name FROM users;")
+
+ratings_df <- dbGetQuery(con, "SELECT CAST(rating_id AS SIGNED) AS rating_id,
+                                  CAST(movie_id AS SIGNED) AS movie_id,
+                                  CAST(user_id AS SIGNED) AS user_id,
+                                  CAST(rating AS SIGNED) AS rating 
+                              FROM ratings;")
+```
+
+## Missing Data
+
+```{r left_join}
+ratings_complete <- ratings_df %>%
+  left_join(movies_df, by = "movie_id") %>%
+  left_join(users_df, by = "user_id")
+
+head(ratings_complete)
+```
+
+```{r average_rating}
+avg_ratings <- ratings_complete %>%
+  group_by(title) %>%
+  summarize(avg_rating = mean(rating))
+print(avg_ratings)
+```
+
+## finalizing
+
+```{r Verifying data}
+str(movies_df)
+str(users_df)
+str(ratings_df)
+ratings_df <- ratings_df %>%
+  mutate(across(where(is.numeric), ~ as.integer(round(.))))
+
+```
+
+##Visual effect
+
+```{r ggplot}
+library(ggplot2)
+ggplot(ratings_complete, aes(x = rating)) +
+  geom_bar(fill = "blue") +
+  labs(title = "Distribution of Movie Ratings", x = "Rating", y = "Count")
+```
+
+##Attempting CSV file
+
+```{r csv_export}
+write.csv(ratings_complete, "movie_ratings.csv", row.names = FALSE)
+```
